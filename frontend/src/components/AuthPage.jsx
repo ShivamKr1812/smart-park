@@ -34,7 +34,7 @@ export default function AuthPage({ onLoginSuccess }) {
       const { api } = await import('../api');
       let res;
       if (isLoginView) {
-        res = await api.login({ email: authForm.email, password: authForm.password });
+        res = await api.login({ email: authForm.email, password: authForm.password, role: authForm.role });
       } else {
         res = await api.signup(authForm);
       }
@@ -49,7 +49,12 @@ export default function AuthPage({ onLoginSuccess }) {
     <div className="auth-container">
       <div className="auth-wrapper">
         <div className="auth-sidebar">
-          <h1>🚗 Smart Parking</h1>
+          <h1>
+            <svg style={{ width: '40px', height: '40px', marginRight: '12px', fill: '#fff', verticalAlign: 'middle' }} viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h4c1.66 0 3 1.34 3 3s-1.34 3-3 3h-2v2zm0-4h2c.55 0 1-.45 1-1s-.45-1-1-1h-2v2z"/>
+            </svg>
+            SmartPark
+          </h1>
           <p>
             The easiest way to find and manage secure parking spaces. Join today and make your parking experience seamless!
           </p>

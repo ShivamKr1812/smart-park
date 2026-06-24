@@ -1,21 +1,14 @@
 import React, { useState } from 'react';
+import ProfileDropdown from './ProfileDropdown';
 
 export default function Navbar({ currentUser, currentPage, setCurrentPage, onLogout, darkMode, toggleDark }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isOwner = currentUser?.role === 'owner';
-  const initials = (currentUser?.name || currentUser?.email || 'U').slice(0, 2).toUpperCase();
 
-  const parkerLinks = [
-    { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
-    { id: 'profile',   label: 'Profile',   icon: '👤' },
-    { id: 'history',   label: 'My Bookings', icon: '📋' },
-    { id: 'support',   label: 'Support',   icon: '💬' },
+  const navLinks = [
+    { id: 'dashboard', label: isOwner ? 'My Spots' : 'Dashboard', icon: isOwner ? '🅿️' : '🏠' },
   ];
-  const ownerLinks = [
-    { id: 'dashboard', label: 'My Spots', icon: '🅿️' },
-  ];
-  const navLinks = isOwner ? ownerLinks : parkerLinks;
 
   const navigate = (id) => {
     setCurrentPage(id);
@@ -27,7 +20,16 @@ export default function Navbar({ currentUser, currentPage, setCurrentPage, onLog
       <div className="navbar-inner">
         {/* Brand */}
         <div className="nav-brand" onClick={() => navigate('dashboard')}>
-          🅿️ SmartPark
+          <svg style={{ width: '26px', height: '26px', fill: 'url(#brandGrad)' }} viewBox="0 0 24 24">
+            <defs>
+              <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="var(--primary)" />
+                <stop offset="100%" stopColor="var(--accent)" />
+              </linearGradient>
+            </defs>
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h4c1.66 0 3 1.34 3 3s-1.34 3-3 3h-2v2zm0-4h2c.55 0 1-.45 1-1s-.45-1-1-1h-2v2z"/>
+          </svg>
+          SmartPark
         </div>
 
         {/* Desktop links */}
@@ -54,17 +56,11 @@ export default function Navbar({ currentUser, currentPage, setCurrentPage, onLog
             {darkMode ? '☀️' : '🌙'}
           </button>
 
-          <div className="nav-avatar" title={currentUser?.email}>
-            {initials}
-          </div>
-
-          <span className="nav-role-badge">
-            {isOwner ? 'Owner' : 'Parker'}
-          </span>
-
-          <button className="btn btn-secondary btn-sm nav-logout" onClick={onLogout}>
-            Logout
-          </button>
+          <ProfileDropdown 
+            currentUser={currentUser} 
+            onLogout={onLogout} 
+            onNavigate={navigate} 
+          />
 
           {/* Hamburger */}
           <button

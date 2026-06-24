@@ -1,12 +1,185 @@
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// LOCAL JSON DATABASE MOCK
+const DB_FILE = path.join(__dirname, "db.json");
+
+function readDB() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const data = fs.readFileSync(DB_FILE, "utf8");
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error("Error reading db.json:", err);
+  }
+  return { users: [], parkings: [], bookings: [] };
+}
+
+function writeDB(data) {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
+  } catch (err) {
+    console.error("Error writing db.json:", err);
+  }
+}
+
+function generateId() {
+  return Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+}
+
+function clone(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+class DocumentInstance {
+  constructor(collectionName, data) {
+    Object.assign(this, data);
+    Object.defineProperty(this, "_collectionName", { value: collectionName, enumerable: false });
+  }
+
+  async save() {
+    const db = readDB();
+    const collection = db[this._collectionName] || [];
+    const index = collection.findIndex(item => item._id === this._id);
+    const updatedData = { ...this };
+    
+    if (index >= 0) {
+      collection[index] = updatedData;
+    } else {
+      collection.push(updatedData);
+    }
+    
+    db[this._collectionName] = collection;
+    writeDB(db);
+    return this;
+  }
+}
+
+class MockModel {
+  constructor(name) {
+    this.name = name;
+    this.collectionName = name.toLowerCase() + "s";
+  }
+
+  async create(data) {
+    const db = readDB();
+    const collection = db[this.collectionName] || [];
+    const newDoc = {
+      _id: generateId(),
+      ...data
+    };
+    if (this.name === "Booking" && !newDoc.date) {
+      newDoc.date = new Date().toISOString();
+    }
+    if (this.name === "Booking" && !newDoc.status) {
+      newDoc.status = "Completed";
+    }
+    collection.push(newDoc);
+    db[this.collectionName] = collection;
+    writeDB(db);
+    return new DocumentInstance(this.collectionName, newDoc);
+  }
+
+  find(query = {}) {
+    const db = readDB();
+    const collection = db[this.collectionName] || [];
+    
+    let results = collection.filter(item => {
+      for (const key in query) {
+        if (query[key] !== undefined && item[key] !== query[key]) {
+          return false;
+        }
+      }
+      return true;
+    }).map(item => new DocumentInstance(this.collectionName, clone(item)));
+
+    const thenable = {
+      then: (onFulfilled, onRejected) => {
+        return Promise.resolve(results).then(onFulfilled, onRejected);
+      },
+      sort: (sortObj) => {
+        const sortKey = Object.keys(sortObj)[0];
+        const sortOrder = sortObj[sortKey];
+        const sortedResults = results.slice().sort((a, b) => {
+          const valA = a[sortKey];
+          const valB = b[sortKey];
+          if (valA < valB) return sortOrder === -1 ? 1 : -1;
+          if (valA > valB) return sortOrder === -1 ? -1 : 1;
+          return 0;
+        });
+        return Promise.resolve(sortedResults);
+      }
+    };
+    return thenable;
+  }
+
+  async findOne(query) {
+    const db = readDB();
+    const collection = db[this.collectionName] || [];
+    const match = collection.find(item => {
+      for (const key in query) {
+        if (query[key] !== undefined && item[key] !== query[key]) {
+          return false;
+        }
+      }
+      return true;
+    });
+    return match ? new DocumentInstance(this.collectionName, clone(match)) : null;
+  }
+
+  async findById(id) {
+    const db = readDB();
+    const collection = db[this.collectionName] || [];
+    const match = collection.find(item => item._id === id);
+    return match ? new DocumentInstance(this.collectionName, clone(match)) : null;
+  }
+
+  async findByIdAndUpdate(id, updateData, options = {}) {
+    const db = readDB();
+    const collection = db[this.collectionName] || [];
+    const index = collection.findIndex(item => item._id === id);
+    if (index === -1) return null;
+    
+    collection[index] = {
+      ...collection[index],
+      ...updateData
+    };
+    db[this.collectionName] = collection;
+    writeDB(db);
+    return new DocumentInstance(this.collectionName, clone(collection[index]));
+  }
+
+  async findByIdAndDelete(id) {
+    const db = readDB();
+    const collection = db[this.collectionName] || [];
+    const index = collection.findIndex(item => item._id === id);
+    if (index === -1) return null;
+    
+    const deleted = collection.splice(index, 1)[0];
+    db[this.collectionName] = collection;
+    writeDB(db);
+    return new DocumentInstance(this.collectionName, clone(deleted));
+  }
+}
+
+const mongoose = {
+  connect: async () => {
+    console.log("Mock MongoDB initialized successfully (using local db.json)");
+    return true;
+  },
+  model: (name) => {
+    return new MockModel(name);
+  }
+};
 
 mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log("MongoDB connected"))
@@ -57,11 +230,11 @@ app.get("/", (req, res) => {
 app.post("/signup", async (req, res) => {
   try {
     const { name, email, password, phone, role } = req.body;
-    const existing = await User.findOne({ email });
+    const existing = await User.findOne({ email, role: role || 'parker' });
     if (existing) {
-      return res.status(400).json({ error: "User already exists" });
+      return res.status(400).json({ error: "User already exists with this role" });
     }
-    const user = await User.create({ name, email, password, phone, role: role || 'user' });
+    const user = await User.create({ name, email, password, phone, role: role || 'parker' });
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -70,8 +243,8 @@ app.post("/signup", async (req, res) => {
 
 app.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email, password });
+    const { email, password, role } = req.body;
+    const user = await User.findOne({ email, password, role: role || 'parker' });
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
