@@ -15,28 +15,9 @@ export default function HistoryPage({ currentUser, onGoToDashboard }) {
   const [loading, setLoading] = useState(true);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
 
-  // Active bookings dynamic timers state
-  const [timers, setTimers] = useState({});
-
   useEffect(() => {
     fetchHistory();
   }, [currentUser._id]);
-
-  // Handle countdown updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimers(prev => {
-        const next = { ...prev };
-        Object.keys(next).forEach(id => {
-          if (next[id] > 0) {
-            next[id] -= 1;
-          }
-        });
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const fetchHistory = async () => {
     setLoading(true);
@@ -44,47 +25,20 @@ export default function HistoryPage({ currentUser, onGoToDashboard }) {
       const res = await api.getBookingHistory(currentUser._id);
       const data = res.data || [];
       setHistory(data);
-
-      // Pre-populate mock countdown timers for the first active booking
-      if (data.length > 0) {
-        const initialTimers = {};
-        // Set first booking to expire in 2700 seconds (45 minutes)
-        initialTimers[data[0]._id] = 2700;
-        setTimers(initialTimers);
-      }
     } catch (err) {
       console.error(err);
     }
     setLoading(false);
   };
 
-  // Extend booking length
-  const handleExtendBooking = async (bookingId, hourlyTariff) => {
-    const tariff = Number(hourlyTariff || 40);
-    const balance = Number(currentUser?.wallet || 0);
-
-    if (balance < tariff) {
-      alert(`⚠️ Insufficient Wallet Balance. Price to extend 1hr: ₹${tariff}. Please recharge in Profile Page.`);
-      return;
+  const getStatusBadge = (booking) => {
+    if (booking.status === 'Checked-In') {
+      return <span className="badge badge-warning" style={{ minWidth: '85px', textAlign: 'center' }}>🟠 Checked-In</span>;
     }
-
-    // Deduct fee and add timer
-    currentUser.wallet = Math.max(0, balance - tariff);
-    setTimers(prev => ({
-      ...prev,
-      [bookingId]: (prev[bookingId] || 0) + 3600 // Add 1 hour
-    }));
-
-    alert(`🕒 Successfully extended booking by 1 Hour! Fee: ₹${tariff} debited from wallet.`);
-  };
-
-  const formatTimer = (seconds) => {
-    if (seconds === undefined) return null;
-    if (seconds <= 0) return "Expired";
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs > 0 ? hrs + 'h ' : ''}${mins}m ${secs}s`;
+    if (booking.status === 'Completed' && booking.exitTime) {
+      return <span className="badge badge-success" style={{ minWidth: '85px', textAlign: 'center' }}>🟢 Completed</span>;
+    }
+    return <span className="badge badge-primary" style={{ minWidth: '85px', textAlign: 'center', background: 'var(--secondary)' }}>🔵 Reserved</span>;
   };
 
   return (
@@ -118,9 +72,7 @@ export default function HistoryPage({ currentUser, onGoToDashboard }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-          {history.map((booking, idx) => {
-            const timerSecs = timers[booking._id];
-            const isActive = timerSecs !== undefined && timerSecs > 0;
+          {history.map((booking) => {
             return (
               <div
                 key={booking._id}
@@ -131,13 +83,13 @@ export default function HistoryPage({ currentUser, onGoToDashboard }) {
                   justifyContent: 'between',
                   alignItems: 'center',
                   gap: '1.5rem',
-                  borderColor: isActive ? 'var(--primary)' : 'var(--border)',
-                  boxShadow: isActive ? 'var(--shadow-lg)' : 'var(--shadow-sm)'
+                  borderColor: booking.status === 'Checked-In' ? 'var(--primary)' : 'var(--border)',
+                  boxShadow: booking.status === 'Checked-In' ? 'var(--shadow-lg)' : 'var(--shadow-sm)'
                 }}
               >
                 {/* Left section: details */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', flex: 1, minWidth: '280px' }}>
-                  <div style={{ width: '45px', height: '45px', borderRadius: '12px', background: isActive ? 'var(--primary-light)' : 'var(--surface-2)', color: isActive ? 'var(--primary)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
+                  <div style={{ width: '45px', height: '45px', borderRadius: '12px', background: booking.status === 'Checked-In' ? 'var(--primary-light)' : 'var(--surface-2)', color: booking.status === 'Checked-In' ? 'var(--primary)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
                     {vehicleEmoji[booking.vehicleType] || '🚘'}
                   </div>
 
@@ -148,9 +100,19 @@ export default function HistoryPage({ currentUser, onGoToDashboard }) {
                     </p>
                     
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.4rem', fontSize: '0.7rem', color: 'var(--text-light)', fontWeight: '600' }}>
-                      <span>{booking.vehicleType} Category</span>
+                      <span>{booking.vehicleType} segment ({booking.vehicleNo || 'Unknown'})</span>
                       <span>•</span>
-                      <span>Registered {formatDate(booking.date)}</span>
+                      <span>Booked {formatDate(booking.date)}</span>
+                    </div>
+
+                    {/* Entry/Exit Timestamps */}
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.4rem', fontSize: '0.65rem', fontFamily: 'mono', color: 'var(--primary)' }}>
+                      {booking.entryTime && (
+                        <span>Entry: {new Date(booking.entryTime).toLocaleTimeString()}</span>
+                      )}
+                      {booking.exitTime && (
+                        <span>Exit: {new Date(booking.exitTime).toLocaleTimeString()}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -161,40 +123,19 @@ export default function HistoryPage({ currentUser, onGoToDashboard }) {
                   {/* Price */}
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '1.2rem', fontWeight: '800' }}>₹{booking.price || 40}</div>
-                    <span className="text-muted" style={{ fontSize: '0.65rem' }}>Total Tariff</span>
+                    <span className="text-muted" style={{ fontSize: '0.65rem' }}>Tariff Charged</span>
                   </div>
 
-                  {/* Active Expiry timer */}
-                  {timerSecs !== undefined && (
-                    <div style={{ background: timerSecs > 0 ? 'var(--primary-light)' : 'var(--danger-bg)', padding: '0.5rem 0.8rem', borderRadius: '8px', textAlign: 'center', minWidth: '110px' }}>
-                      <span className="text-muted block" style={{ fontSize: '0.6rem', textTransform: 'uppercase' }}>Time Left</span>
-                      <strong style={{ fontSize: '0.85rem', color: timerSecs > 0 ? 'var(--primary)' : 'var(--danger)', fontFamily: 'mono' }}>
-                        {formatTimer(timerSecs)}
-                      </strong>
-                    </div>
-                  )}
-
                   {/* Status Badge */}
-                  <span className={`badge ${isActive ? 'badge-success' : 'badge-warning'}`} style={{ minWidth: '85px', textAlign: 'center' }}>
-                    {isActive ? '🟢 Active' : 'Completed'}
-                  </span>
+                  {getStatusBadge(booking)}
 
-                  {/* Dynamic Action triggers */}
+                  {/* Action Button */}
                   <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    {isActive && (
-                      <button 
-                        className="btn btn-outline btn-sm"
-                        onClick={() => handleExtendBooking(booking._id, booking.price)}
-                        style={{ gap: '0.2rem' }}
-                      >
-                        <Plus size={12} /> Extend
-                      </button>
-                    )}
                     <button 
                       className="btn btn-primary btn-sm"
                       onClick={() => setSelectedReceipt(booking)}
                     >
-                      Ticket pass
+                      Ticket Pass
                     </button>
                   </div>
 
@@ -217,10 +158,12 @@ export default function HistoryPage({ currentUser, onGoToDashboard }) {
               </div>
 
               <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-                <div className="checkmark-circle">
+                <div className="checkmark-circle" style={{ background: selectedReceipt.status === 'Checked-In' ? 'var(--accent)' : 'var(--primary)' }}>
                   ✓
                 </div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>Pass Authenticated</h3>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>
+                  {selectedReceipt.status === 'Checked-In' ? 'Checked-In' : selectedReceipt.exitTime ? 'Pass Completed' : 'Pass Authenticated'}
+                </h3>
                 <p className="text-muted text-xs mt-1 leading-relaxed">
                   Gate scanner entry authorization is active for this QR code.
                 </p>
@@ -247,29 +190,51 @@ export default function HistoryPage({ currentUser, onGoToDashboard }) {
 
                 <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem', borderTop: '1px dashed var(--border)', paddingTop: '1rem', marginBottom: '1.5rem' }}>
                   <div className="flex-between">
-                    <span className="text-muted">Garage Outcrop</span>
+                    <span className="text-muted">Garage Name</span>
                     <strong>{selectedReceipt.parkingName}</strong>
                   </div>
                   <div className="flex-between">
-                    <span className="text-muted">Vehicle Type</span>
+                    <span className="text-muted">License Plate</span>
+                    <strong>{selectedReceipt.vehicleNo || 'Unknown'}</strong>
+                  </div>
+                  <div className="flex-between">
+                    <span className="text-muted">Vehicle Category</span>
                     <strong>{selectedReceipt.vehicleType}</strong>
+                  </div>
+                  <div className="flex-between">
+                    <span className="text-muted">Verification Token</span>
+                    <strong style={{ fontFamily: 'mono', color: 'var(--primary)' }}>
+                      {selectedReceipt.verificationToken || 'SP-' + selectedReceipt._id}
+                    </strong>
                   </div>
                   <div className="flex-between">
                     <span className="text-muted">Total Tariff Paid</span>
                     <strong>₹{selectedReceipt.price}</strong>
                   </div>
-                  <div className="flex-between">
-                    <span className="text-muted">Booking Reference</span>
-                    <strong style={{ fontFamily: 'mono' }}>SP-{selectedReceipt._id}</strong>
-                  </div>
+                  {selectedReceipt.entryTime && (
+                    <div className="flex-between">
+                      <span className="text-muted">Entry Timestamp</span>
+                      <strong style={{ fontFamily: 'mono' }}>
+                        {new Date(selectedReceipt.entryTime).toLocaleTimeString()}
+                      </strong>
+                    </div>
+                  )}
+                  {selectedReceipt.exitTime && (
+                    <div className="flex-between">
+                      <span className="text-muted">Exit Timestamp</span>
+                      <strong style={{ fontFamily: 'mono' }}>
+                        {new Date(selectedReceipt.exitTime).toLocaleTimeString()}
+                      </strong>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
                   <button className="btn btn-outline" style={{ flex: 1, gap: '0.3rem', fontSize: '0.8rem' }} onClick={() => alert("Downloaded PDF Receipt.")}>
-                    <Download size={14} /> Download
+                    Download
                   </button>
                   <button className="btn btn-outline" style={{ flex: 1, gap: '0.3rem', fontSize: '0.8rem' }} onClick={() => alert("Credentials shared.")}>
-                    <Share2 size={14} /> Share
+                    Share
                   </button>
                 </div>
               </div>

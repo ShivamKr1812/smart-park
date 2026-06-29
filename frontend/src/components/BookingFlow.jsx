@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, CreditCard, Ticket, CheckCircle2, QrCode, Download, Share2, Sparkles, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Calendar, Clock, CreditCard, Ticket, Download, Share2, Sparkles, ChevronRight } from 'lucide-react';
 import { api } from '../api';
 
-export default function BookingFlow({ parking, currentUser, onClose, onBookingSuccess }) {
+export default function BookingFlow({ parking, currentUser, onClose, onBookingSuccess, initialVehicleType }) {
   const [step, setStep] = useState(1); // 1: Details, 2: Payment, 3: Success
-  const [vehicleType, setVehicleType] = useState('Car');
+  const [vehicleType, setVehicleType] = useState(initialVehicleType || 'Car');
   const [vehicleNo, setVehicleNo] = useState(
     currentUser?.vehicles && currentUser.vehicles.length > 0
       ? currentUser.vehicles[0].plate
@@ -20,8 +20,18 @@ export default function BookingFlow({ parking, currentUser, onClose, onBookingSu
   const [paymentMethod, setPaymentMethod] = useState('Wallet');
   const [paying, setPaying] = useState(false);
   const [bookingId, setBookingId] = useState('');
+  const [verificationToken, setVerificationToken] = useState('');
 
-  const basePrice = Number(parking.price) * duration;
+  // Extract Pricing matrix
+  const pricing = parking.pricing || {
+    "Car": { "hourly": parking.price || 50, "daily": (parking.price || 50) * 6 },
+    "Bike": { "hourly": (parking.price || 50) * 0.4, "daily": (parking.price || 50) * 2.4 },
+    "EV": { "hourly": (parking.price || 50) * 1.2, "daily": (parking.price || 50) * 7.2 },
+    "Truck": { "hourly": (parking.price || 50) * 2.0, "daily": (parking.price || 50) * 12.0 }
+  };
+  const activeRate = pricing[vehicleType] || { hourly: parking.price || 50 };
+  const hourlyPrice = Number(activeRate.hourly || parking.price || 50);
+  const basePrice = hourlyPrice * duration;
   const finalPrice = Math.max(0, basePrice - discount);
 
   const applyCoupon = () => {
@@ -55,14 +65,31 @@ export default function BookingFlow({ parking, currentUser, onClose, onBookingSu
         }
       }
 
-      const res = await api.bookParking(parking._id, vehicleType, currentUser?._id);
+      const res = await api.bookParking(parking._id, vehicleType, currentUser?._id, vehicleNo, finalPrice);
       
       // Deduct from wallet client-side to maintain simulation sync
       if (paymentMethod === 'Wallet' && currentUser) {
         currentUser.wallet = Math.max(0, Number(currentUser.wallet) - finalPrice);
+        // Persist local storage
+        localStorage.setItem('smartpark-user', JSON.stringify(currentUser));
+        
+        // Sync to server
+        try {
+          await api.updateUser(currentUser._id, {
+            name: currentUser.name,
+            phone: currentUser.phone,
+            wallet: currentUser.wallet,
+            vehicles: currentUser.vehicles
+          });
+        } catch (e) {
+          console.error("Wallet sync failed:", e.message);
+        }
       }
 
-      setBookingId(res.data._id || Math.floor(Math.random() * 1000000).toString());
+      const bId = res.data._id || Math.floor(Math.random() * 1000000).toString();
+      const tokenVal = res.data.verificationToken || res.data.verification_token || bId;
+      setBookingId(bId);
+      setVerificationToken(tokenVal);
       setStep(3);
       if (onBookingSuccess) onBookingSuccess();
     } catch (e) {
@@ -95,7 +122,7 @@ export default function BookingFlow({ parking, currentUser, onClose, onBookingSu
             <h4 style={{ color: 'var(--primary)', fontSize: '0.95rem' }}>{parking.title}</h4>
             <p className="text-muted text-xs mt-0.5">{parking.location}</p>
             <span style={{ fontSize: '0.8rem', fontWeight: '600', marginTop: '0.4rem', display: 'block' }}>
-              ₹{parking.price}/hr • Hourly Tariff
+              ₹{hourlyPrice}/hr • Hourly Tariff ({vehicleType})
             </span>
           </div>
 
@@ -327,21 +354,25 @@ export default function BookingFlow({ parking, currentUser, onClose, onBookingSu
               <strong style={{ fontFamily: 'mono' }}>SP-{bookingId}</strong>
             </div>
             <div className="flex-between">
+              <span className="text-muted">Verification Token</span>
+              <strong style={{ fontFamily: 'mono', color: 'var(--primary)' }}>{verificationToken}</strong>
+            </div>
+            <div className="flex-between">
               <span className="text-muted">Vehicle License Plate</span>
               <strong>{vehicleNo}</strong>
             </div>
             <div className="flex-between">
               <span className="text-muted">Tectonic Sector Spot</span>
-              <strong>{parking.title}</strong>
+              <strong>{parking.title} ({vehicleType})</strong>
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
             <button className="btn btn-outline" style={{ flex: 1, gap: '0.3rem', fontSize: '0.8rem' }} onClick={() => alert("Simulated: Digital invoice downloaded.")}>
-              <Download size={14} /> Receipt
+              Download
             </button>
             <button className="btn btn-outline" style={{ flex: 1, gap: '0.3rem', fontSize: '0.8rem' }} onClick={() => alert("Simulated: Booking credentials shared.")}>
-              <Share2 size={14} /> Share
+              Share
             </button>
           </div>
 

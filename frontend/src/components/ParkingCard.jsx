@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Phone, Heart, Star, Navigation, ShieldCheck, ShieldAlert, Cpu } from 'lucide-react';
+import { MapPin, Phone, Heart, Star, Navigation, ShieldCheck, ShieldAlert } from 'lucide-react';
 
 const vehicleEmoji = { Car: '🚘', Bike: '🏍️', EV: '⚡', Truck: '🚚' };
 
@@ -55,6 +55,16 @@ export default function ParkingCard({ parking, isOwner, onEdit, onDelete, onBook
   const availableSlots = activeSlot ? activeSlot.available : 0;
   const occupancyPercentage = ((totalSlots - availableSlots) / totalSlots) * 100;
 
+  // Extract customized pricing for selected vehicle type
+  const pricing = parking.pricing || {
+    "Car": { "hourly": parking.price || 50, "daily": (parking.price || 50) * 6 },
+    "Bike": { "hourly": (parking.price || 50) * 0.4, "daily": (parking.price || 50) * 2.4 },
+    "EV": { "hourly": (parking.price || 50) * 1.2, "daily": (parking.price || 50) * 7.2 },
+    "Truck": { "hourly": (parking.price || 50) * 2.0, "daily": (parking.price || 50) * 12.0 }
+  };
+  const activeRate = pricing[selectedVehicle] || { hourly: parking.price || 50 };
+  const hourlyPrice = Number(activeRate.hourly || parking.price || 50);
+
   // Amenities mock tags
   const cctvSecured = Number(parking.price) >= 35;
   const hasEv = parking.title?.toLowerCase().includes('outlet') || parking.title?.toLowerCase().includes('ev');
@@ -65,7 +75,6 @@ export default function ParkingCard({ parking, isOwner, onEdit, onDelete, onBook
       
       {/* Visual Image Header */}
       <div style={{ height: '140px', background: 'var(--surface-2)', position: 'relative', overflow: 'hidden', borderBottom: '1px solid var(--border)' }}>
-        {/* Procedural background geometry */}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, var(--primary-light), var(--secondary-light))', opacity: '0.7' }} />
         <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: '0.1' }}>
           <pattern id="cardGrid" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -113,7 +122,7 @@ export default function ParkingCard({ parking, isOwner, onEdit, onDelete, onBook
         <div className="flex-between">
           <h4 style={{ fontSize: '1.05rem', fontWeight: '800', lineHeight: '1.3' }}>{parking.title}</h4>
           <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--primary)' }}>₹{parking.price}</span>
+            <span style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--primary)' }}>₹{hourlyPrice}</span>
             <span className="text-muted" style={{ fontSize: '0.7rem' }}>/hr</span>
           </div>
         </div>
@@ -128,7 +137,7 @@ export default function ParkingCard({ parking, isOwner, onEdit, onDelete, onBook
         {/* Address and details */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem' }}>
           <div className="flex-between cursor-pointer" onClick={handleOpenMap} style={{ color: 'var(--text-muted)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               <MapPin size={13} /> {parking.location}
             </span>
           </div>
@@ -157,8 +166,11 @@ export default function ParkingCard({ parking, isOwner, onEdit, onDelete, onBook
               <button
                 key={slot.type}
                 type="button"
-                disabled={isOwner || !available}
-                onClick={() => setSelectedVehicle(slot.type)}
+                disabled={!available}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedVehicle(slot.type);
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -169,7 +181,7 @@ export default function ParkingCard({ parking, isOwner, onEdit, onDelete, onBook
                   borderColor: isSelected ? 'var(--primary)' : 'var(--border)',
                   background: isSelected ? 'var(--primary-light)' : 'transparent',
                   color: available ? 'var(--text)' : 'var(--text-light)',
-                  cursor: isOwner || !available ? 'default' : 'pointer',
+                  cursor: !available ? 'default' : 'pointer',
                   fontSize: '0.75rem',
                   fontWeight: '600'
                 }}
@@ -187,7 +199,7 @@ export default function ParkingCard({ parking, isOwner, onEdit, onDelete, onBook
         {/* Live Slot availability progress bar */}
         <div style={{ marginTop: '0.2rem' }}>
           <div className="flex-between text-muted" style={{ fontSize: '0.65rem', marginBottom: '0.2rem' }}>
-            <span>Slot Occupancy Ratio</span>
+            <span>Slot Occupancy Ratio ({selectedVehicle})</span>
             <strong>{Math.round(occupancyPercentage)}% Filled</strong>
           </div>
           <div style={{ height: '5px', background: 'var(--surface-3)', borderRadius: '99px', overflow: 'hidden' }}>
@@ -217,7 +229,7 @@ export default function ParkingCard({ parking, isOwner, onEdit, onDelete, onBook
               <button
                 className="btn btn-primary"
                 style={{ flex: 1, padding: '0.6rem' }}
-                onClick={() => onBook(parking)}
+                onClick={() => onBook(parking, selectedVehicle)}
               >
                 Book Space
               </button>

@@ -9,17 +9,44 @@ export default function ParkingForm({ onSubmit, initialData, onCancel }) {
     location: '',
     price: '',
     phone: '',
-    slots: [] // Array of { type: 'Car', total: 10, available: 10 }
+    slots: [], // Array of { type: 'Car', total: 10, available: 10 }
+    pricing: {
+      Car: { hourly: 50, daily: 300 },
+      Bike: { hourly: 20, daily: 100 },
+      EV: { hourly: 60, daily: 400 },
+      Truck: { hourly: 100, daily: 700 }
+    }
   });
 
   useEffect(() => {
     if (initialData) {
-      setForm(initialData);
+      const defaultPrice = Number(initialData.price) || 50;
+      setForm({
+        ...initialData,
+        pricing: initialData.pricing || {
+          Car: { hourly: defaultPrice, daily: defaultPrice * 6 },
+          Bike: { hourly: Math.round(defaultPrice * 0.4), daily: Math.round(defaultPrice * 2.4) },
+          EV: { hourly: Math.round(defaultPrice * 1.2), daily: Math.round(defaultPrice * 7.2) },
+          Truck: { hourly: Math.round(defaultPrice * 2.0), daily: Math.round(defaultPrice * 12.0) }
+        }
+      });
     }
   }, [initialData]);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm(prev => {
+      const updated = { ...prev, [name]: value };
+      // Keep primary price input in sync with Car hourly rate
+      if (name === 'price') {
+        const primary = Number(value) || 50;
+        updated.pricing = {
+          ...prev.pricing,
+          Car: { hourly: primary, daily: primary * 6 }
+        };
+      }
+      return updated;
+    });
   };
 
   const handleSlotChange = (type, value) => {
@@ -29,10 +56,10 @@ export default function ParkingForm({ onSubmit, initialData, onCancel }) {
     
     if (index >= 0) {
       if (total === 0) {
-         existingSlots.splice(index, 1);
+        existingSlots.splice(index, 1);
       } else {
-         existingSlots[index].total = total;
-         existingSlots[index].available = total; 
+        existingSlots[index].total = total;
+        existingSlots[index].available = total; 
       }
     } else if (total > 0) {
       existingSlots.push({ type, total, available: total });
@@ -46,6 +73,20 @@ export default function ParkingForm({ onSubmit, initialData, onCancel }) {
     return slot ? slot.total : '';
   };
 
+  const handlePriceChange = (type, field, value) => {
+    const valNum = Number(value) || 0;
+    setForm(prev => ({
+      ...prev,
+      pricing: {
+        ...prev.pricing,
+        [type]: {
+          ...prev.pricing[type],
+          [field]: valNum
+        }
+      }
+    }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.title || !form.location || !form.price || form.slots.length === 0) {
@@ -54,7 +95,19 @@ export default function ParkingForm({ onSubmit, initialData, onCancel }) {
     }
     onSubmit(form);
     if (!initialData) {
-      setForm({ title: '', location: '', price: '', phone: '', slots: [] });
+      setForm({
+        title: '',
+        location: '',
+        price: '',
+        phone: '',
+        slots: [],
+        pricing: {
+          Car: { hourly: 50, daily: 300 },
+          Bike: { hourly: 20, daily: 100 },
+          EV: { hourly: 60, daily: 400 },
+          Truck: { hourly: 100, daily: 700 }
+        }
+      });
     }
   };
 
@@ -89,7 +142,7 @@ export default function ParkingForm({ onSubmit, initialData, onCancel }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-muted">Tariff (₹ / Hour)</label>
+            <label className="text-xs font-semibold text-muted">Base Tariff (₹ / Hour)</label>
             <input 
               name="price" 
               type="number" 
@@ -144,6 +197,55 @@ export default function ParkingForm({ onSubmit, initialData, onCancel }) {
                 />
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Dynamic Pricing matrix */}
+        <div className="flex flex-col gap-1.5" style={{ marginTop: '0.5rem' }}>
+          <label className="text-xs font-semibold text-muted">Tariff Settings by Vehicle Type (₹)</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            {VEHICLE_TYPES.map(vt => {
+              const rates = form.pricing[vt] || { hourly: 0, daily: 0 };
+              return (
+                <div 
+                  key={vt} 
+                  style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '1.2fr 1fr 1fr', 
+                    gap: '0.4rem', 
+                    alignItems: 'center', 
+                    background: 'var(--surface-2)', 
+                    padding: '0.5rem', 
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)' 
+                  }}
+                >
+                  <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text)' }}>
+                    {VEHICLE_EMOJIS[vt]} {vt} Price
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Hr:</span>
+                    <input 
+                      type="number" 
+                      min="0"
+                      style={{ width: '100%', padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                      value={rates.hourly}
+                      onChange={(e) => handlePriceChange(vt, 'hourly', e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Day:</span>
+                    <input 
+                      type="number" 
+                      min="0"
+                      style={{ width: '100%', padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                      value={rates.daily}
+                      onChange={(e) => handlePriceChange(vt, 'daily', e.target.value)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

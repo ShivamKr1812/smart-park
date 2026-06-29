@@ -105,8 +105,14 @@ const initDb = async () => {
         owner_id VARCHAR(100),
         rating DECIMAL(3,2) DEFAULT 0,
         total_ratings INTEGER DEFAULT 0,
-        slots JSONB
+        slots JSONB,
+        pricing JSONB DEFAULT '{"Car": {"hourly": 50, "daily": 300}, "Bike": {"hourly": 20, "daily": 100}, "EV": {"hourly": 60, "daily": 400}, "Truck": {"hourly": 100, "daily": 700}}'::jsonb
       );
+    `);
+
+    // Run pricing migration
+    await client.query(`
+      ALTER TABLE parkings ADD COLUMN IF NOT EXISTS pricing JSONB DEFAULT '{"Car": {"hourly": 50, "daily": 300}, "Bike": {"hourly": 20, "daily": 100}, "EV": {"hourly": 60, "daily": 400}, "Truck": {"hourly": 100, "daily": 700}}'::jsonb;
     `);
 
     // Create/Verify Bookings Table
@@ -120,8 +126,26 @@ const initDb = async () => {
         vehicle_type VARCHAR(50),
         price DECIMAL(10,2),
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        status VARCHAR(50) DEFAULT 'Completed'
+        status VARCHAR(50) DEFAULT 'Completed',
+        entry_time TIMESTAMP DEFAULT NULL,
+        exit_time TIMESTAMP DEFAULT NULL,
+        verification_token VARCHAR(255) DEFAULT NULL,
+        vehicle_no VARCHAR(50) DEFAULT NULL
       );
+    `);
+
+    // Run bookings migrations
+    await client.query(`
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS entry_time TIMESTAMP DEFAULT NULL;
+    `);
+    await client.query(`
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS exit_time TIMESTAMP DEFAULT NULL;
+    `);
+    await client.query(`
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS verification_token VARCHAR(255) DEFAULT NULL;
+    `);
+    await client.query(`
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_no VARCHAR(50) DEFAULT NULL;
     `);
 
     console.log("PostgreSQL schemas verified successfully.");
@@ -208,11 +232,22 @@ class MockModel {
       vehicles: [],
       ...data
     };
-    if (this.name === "Booking" && !newDoc.date) {
-      newDoc.date = new Date().toISOString();
+    if (this.name === "Parking" && !newDoc.pricing) {
+      newDoc.pricing = {
+        "Car": { "hourly": 50, "daily": 300 },
+        "Bike": { "hourly": 20, "daily": 100 },
+        "EV": { "hourly": 60, "daily": 400 },
+        "Truck": { "hourly": 100, "daily": 700 }
+      };
     }
-    if (this.name === "Booking" && !newDoc.status) {
-      newDoc.status = "Completed";
+    if (this.name === "Booking") {
+      if (!newDoc.date) newDoc.date = new Date().toISOString();
+      if (!newDoc.status) newDoc.status = "Completed";
+      if (!newDoc.verification_token) {
+        newDoc.verification_token = "TOKEN-" + Math.floor(100000 + Math.random() * 900000) + "-" + Date.now();
+      }
+      if (!newDoc.entry_time) newDoc.entry_time = null;
+      if (!newDoc.exit_time) newDoc.exit_time = null;
     }
     collection.push(newDoc);
     db[this.collectionName] = collection;
@@ -334,7 +369,13 @@ function formatParking(row) {
     ownerId: row.owner_id,
     rating: Number(row.rating || 0),
     totalRatings: Number(row.total_ratings || 0),
-    slots: typeof row.slots === 'string' ? JSON.parse(row.slots) : row.slots
+    slots: typeof row.slots === 'string' ? JSON.parse(row.slots) : row.slots,
+    pricing: typeof row.pricing === 'string' ? JSON.parse(row.pricing) : (row.pricing || {
+      "Car": { "hourly": 50, "daily": 300 },
+      "Bike": { "hourly": 20, "daily": 100 },
+      "EV": { "hourly": 60, "daily": 400 },
+      "Truck": { "hourly": 100, "daily": 700 }
+    })
   };
 }
 
@@ -349,7 +390,11 @@ function formatBooking(row) {
     vehicleType: row.vehicle_type,
     price: Number(row.price),
     date: row.date,
-    status: row.status
+    status: row.status,
+    entryTime: row.entry_time,
+    exitTime: row.exit_time,
+    verificationToken: row.verification_token,
+    vehicleNo: row.vehicle_no
   };
 }
 
@@ -638,16 +683,26 @@ app.get("/owner/:ownerId", async (req, res) => {
 
 app.post("/add", async (req, res) => {
   try {
+    const { title, location, price, phone, ownerId, slots, pricing } = req.body;
+    const slotsJson = JSON.stringify(slots || []);
+    
+    // Default pricing if none provided
+    const defaultPricing = pricing || {
+      "Car": { "hourly": Number(price) || 50, "daily": (Number(price) || 50) * 6 },
+      "Bike": { "hourly": (Number(price) || 50) * 0.4, "daily": (Number(price) || 50) * 2.4 },
+      "EV": { "hourly": (Number(price) || 50) * 1.2, "daily": (Number(price) || 50) * 7.2 },
+      "Truck": { "hourly": (Number(price) || 50) * 2.0, "daily": (Number(price) || 50) * 12.0 }
+    };
+    const pricingJson = JSON.stringify(defaultPricing);
+
     if (usePostgres) {
-      const { title, location, price, phone, ownerId, slots } = req.body;
-      const slotsJson = JSON.stringify(slots || []);
       const result = await pool.query(
-        "INSERT INTO parkings (title, location, price, phone, owner_id, slots) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-        [title, location, price, phone, ownerId ? ownerId.toString() : null, slotsJson]
+        "INSERT INTO parkings (title, location, price, phone, owner_id, slots, pricing) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+        [title, location, price, phone, ownerId ? ownerId.toString() : null, slotsJson, pricingJson]
       );
       res.json(formatParking(result.rows[0]));
     } else {
-      const data = await ParkingMock.create(req.body);
+      const data = await ParkingMock.create({ title, location, price, phone, ownerId, slots, pricing: defaultPricing });
       res.json(data);
     }
   } catch (err) {
@@ -657,7 +712,7 @@ app.post("/add", async (req, res) => {
 
 app.put("/update/:id", async (req, res) => {
   try {
-    const { title, location, price, phone, ownerId, slots } = req.body;
+    const { title, location, price, phone, ownerId, slots, pricing } = req.body;
     
     if (usePostgres) {
       const parkingId = parseInt(req.params.id);
@@ -679,9 +734,15 @@ app.put("/update/:id", async (req, res) => {
       }
       const slotsJson = JSON.stringify(newSlots);
 
+      let newPricing = current.pricing;
+      if (pricing !== undefined) {
+        newPricing = typeof pricing === 'string' ? JSON.parse(pricing) : pricing;
+      }
+      const pricingJson = JSON.stringify(newPricing);
+
       const result = await pool.query(
-        "UPDATE parkings SET title = $1, location = $2, price = $3, phone = $4, owner_id = $5, slots = $6 WHERE id = $7 RETURNING *",
-        [newTitle, newLocation, newPrice, newPhone, newOwnerId, slotsJson, parkingId]
+        "UPDATE parkings SET title = $1, location = $2, price = $3, phone = $4, owner_id = $5, slots = $6, pricing = $7 WHERE id = $8 RETURNING *",
+        [newTitle, newLocation, newPrice, newPhone, newOwnerId, slotsJson, pricingJson, parkingId]
       );
       res.json(formatParking(result.rows[0]));
     } else {
@@ -713,7 +774,7 @@ app.delete("/delete/:id", async (req, res) => {
 
 app.post("/book", async (req, res) => {
   try {
-    const { parkingId, vehicleType, userId } = req.body;
+    const { parkingId, vehicleType, userId, vehicleNo, price } = req.body;
     
     if (usePostgres) {
       const pid = parseInt(parkingId);
@@ -726,76 +787,255 @@ app.post("/book", async (req, res) => {
       let slots = typeof parking.slots === 'string' ? JSON.parse(parking.slots) : parking.slots;
       if (!Array.isArray(slots)) slots = [];
 
-      const slotData = slots.find(s => s.type === vehicleType);
+      // Case-Insensitive slot checks
+      const slotData = slots.find(s => s.type.toLowerCase() === vehicleType.toLowerCase());
       if (!slotData || slotData.available <= 0) {
-        return res.status(400).json({ error: "No slots available for this vehicle type" });
+        return res.status(400).json({ error: `No ${vehicleType} slots available.` });
+      }
+
+      const costToDeduct = price !== undefined ? Number(price) : Number(parking.price);
+
+      // Wallet verification check
+      if (userId) {
+        const uRes = await pool.query("SELECT * FROM users WHERE id = $1", [parseInt(userId)]);
+        if (uRes.rows.length > 0) {
+          const user = uRes.rows[0];
+          if (Number(user.wallet) < costToDeduct) {
+            return res.status(400).json({ error: "Insufficient wallet balance." });
+          }
+          const newWallet = Math.max(0, Number(user.wallet || 0) - costToDeduct);
+          await pool.query("UPDATE users SET wallet = $1 WHERE id = $2", [newWallet, user.id]);
+        }
       }
 
       slotData.available -= 1;
       const slotsJson = JSON.stringify(slots);
 
-      const updatedRes = await pool.query(
-        "UPDATE parkings SET slots = $1 WHERE id = $2 RETURNING *",
-        [slotsJson, pid]
-      );
+      await pool.query("UPDATE parkings SET slots = $1 WHERE id = $2", [slotsJson, pid]);
+
+      const verificationToken = "TOKEN-" + Math.floor(100000 + Math.random() * 900000) + "-" + Date.now();
 
       let newBooking = null;
       if (userId) {
-        const uRes = await pool.query("SELECT * FROM users WHERE id = $1", [parseInt(userId)]);
-        if (uRes.rows.length > 0) {
-          const user = uRes.rows[0];
-          const newWallet = Math.max(0, Number(user.wallet || 0) - Number(parking.price));
-          await pool.query("UPDATE users SET wallet = $1 WHERE id = $2", [newWallet, user.id]);
-        }
-
         const bRes = await pool.query(
-          "INSERT INTO bookings (user_id, parking_id, parking_name, location, vehicle_type, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+          "INSERT INTO bookings (user_id, parking_id, parking_name, location, vehicle_type, price, status, verification_token, vehicle_no) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
           [
             userId.toString(),
             parkingId.toString(),
             parking.title,
             parking.location,
             vehicleType,
-            parking.price,
-            "Completed"
+            costToDeduct,
+            "Completed",
+            verificationToken,
+            vehicleNo || "DL-3C-AM-1234"
           ]
         );
         newBooking = formatBooking(bRes.rows[0]);
       }
 
-      res.json(newBooking || formatParking(updatedRes.rows[0]));
+      res.json(newBooking || formatParking(parking));
     } else {
       const parking = await ParkingMock.findById(parkingId);
       if (!parking) return res.status(404).json({ error: "Not found" });
 
-      const slotData = parking.slots.find(s => s.type === vehicleType);
+      const slotData = parking.slots.find(s => s.type.toLowerCase() === vehicleType.toLowerCase());
       if (!slotData || slotData.available <= 0) {
-        return res.status(400).json({ error: "No slots available for this vehicle" });
+        return res.status(400).json({ error: `No ${vehicleType} slots available.` });
+      }
+
+      const costToDeduct = price !== undefined ? Number(price) : Number(parking.price);
+
+      if (userId) {
+        const user = await UserMock.findById(userId);
+        if (user) {
+          if (Number(user.wallet) < costToDeduct) {
+            return res.status(400).json({ error: "Insufficient wallet balance." });
+          }
+          user.wallet = Math.max(0, Number(user.wallet || 0) - costToDeduct);
+          await user.save();
+        }
       }
 
       slotData.available -= 1;
       await parking.save();
 
+      const verificationToken = "TOKEN-" + Math.floor(100000 + Math.random() * 900000) + "-" + Date.now();
+
       let newBooking = null;
       if (userId) {
-        const user = await UserMock.findById(userId);
-        if (user) {
-          user.wallet = Math.max(0, Number(user.wallet || 0) - Number(parking.price));
-          await user.save();
-        }
-
         newBooking = await BookingMock.create({
           userId,
           parkingId,
           parkingName: parking.title,
           location: parking.location,
           vehicleType,
-          price: parking.price,
-          status: "Completed"
+          price: costToDeduct,
+          status: "Completed",
+          verification_token: verificationToken,
+          vehicle_no: vehicleNo || "DL-3C-AM-1234"
         });
       }
 
       res.json(newBooking || parking);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// QR Scanner Verification Endpoint
+app.post("/verify/scan", async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Missing verification token or booking ID" });
+
+    if (usePostgres) {
+      let result = await pool.query(
+        "SELECT * FROM bookings WHERE verification_token = $1 OR id::text = $2",
+        [token, token]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "❌ Invalid QR Code / Ticket not found." });
+      }
+
+      const booking = result.rows[0];
+      
+      // Entry scan
+      if (booking.status === 'Completed' && !booking.entry_time) {
+        const now = new Date();
+        await pool.query(
+          "UPDATE bookings SET status = $1, entry_time = $2 WHERE id = $3",
+          ['Checked-In', now, booking.id]
+        );
+        
+        let userName = "Parker";
+        const uRes = await pool.query("SELECT name FROM users WHERE id = $1", [parseInt(booking.user_id)]);
+        if (uRes.rows.length > 0) userName = uRes.rows[0].name;
+
+        return res.json({
+          message: "✅ Entry Approved",
+          action: "entry",
+          booking: {
+            ...formatBooking(booking),
+            status: 'Checked-In',
+            entryTime: now,
+            userName,
+            vehicleNo: booking.vehicle_no,
+            vehicleType: booking.vehicle_type
+          }
+        });
+      }
+
+      // Exit scan
+      if (booking.status === 'Checked-In') {
+        const now = new Date();
+        await pool.query(
+          "UPDATE bookings SET status = $1, exit_time = $2 WHERE id = $3",
+          ['Completed', now, booking.id]
+        );
+
+        // Reclaim slot back to vehicle capacity
+        const pid = parseInt(booking.parking_id);
+        const parkingRes = await pool.query("SELECT * FROM parkings WHERE id = $1", [pid]);
+        if (parkingRes.rows.length > 0) {
+          const parking = parkingRes.rows[0];
+          let slots = typeof parking.slots === 'string' ? JSON.parse(parking.slots) : parking.slots;
+          if (Array.isArray(slots)) {
+            const slotData = slots.find(s => s.type.toLowerCase() === booking.vehicle_type.toLowerCase());
+            if (slotData) {
+              slotData.available = Math.min(slotData.total, slotData.available + 1);
+              await pool.query("UPDATE parkings SET slots = $1 WHERE id = $2", [JSON.stringify(slots), pid]);
+            }
+          }
+        }
+
+        let userName = "Parker";
+        const uRes = await pool.query("SELECT name FROM users WHERE id = $1", [parseInt(booking.user_id)]);
+        if (uRes.rows.length > 0) userName = uRes.rows[0].name;
+
+        return res.json({
+          message: "✅ Exit Approved",
+          action: "exit",
+          booking: {
+            ...formatBooking(booking),
+            status: 'Completed',
+            exitTime: now,
+            userName,
+            vehicleNo: booking.vehicle_no,
+            vehicleType: booking.vehicle_type
+          }
+        });
+      }
+
+      if (booking.status === 'Completed' && booking.exit_time) {
+        return res.status(400).json({ error: "❌ Booking Already Used (Exit Complete)." });
+      }
+
+      return res.status(400).json({ error: "❌ Booking Expired or Invalid." });
+
+    } else {
+      // Mock db verification
+      const db = readDB();
+      const booking = db.bookings?.find(b => b.verification_token === token || b._id === token);
+      if (!booking) {
+        return res.status(404).json({ error: "❌ Invalid QR Code / Ticket not found." });
+      }
+
+      if (booking.status === 'Completed' && !booking.entry_time) {
+        booking.status = 'Checked-In';
+        booking.entry_time = new Date().toISOString();
+        writeDB(db);
+
+        const user = db.users?.find(u => u._id === booking.userId);
+        const userName = user ? user.name : "Parker";
+
+        return res.json({
+          message: "✅ Entry Approved",
+          action: "entry",
+          booking: {
+            ...booking,
+            userName,
+            vehicleNo: booking.vehicle_no || "Unknown",
+            vehicleType: booking.vehicleType
+          }
+        });
+      }
+
+      if (booking.status === 'Checked-In') {
+        booking.status = 'Completed';
+        booking.exit_time = new Date().toISOString();
+        
+        // Reclaim slot
+        const parking = db.parkings?.find(p => p._id === booking.parkingId);
+        if (parking && Array.isArray(parking.slots)) {
+          const slotData = parking.slots.find(s => s.type.toLowerCase() === booking.vehicleType.toLowerCase());
+          if (slotData) {
+            slotData.available = Math.min(slotData.total, slotData.available + 1);
+          }
+        }
+        writeDB(db);
+
+        const user = db.users?.find(u => u._id === booking.userId);
+        const userName = user ? user.name : "Parker";
+
+        return res.json({
+          message: "✅ Exit Approved",
+          action: "exit",
+          booking: {
+            ...booking,
+            userName,
+            vehicleNo: booking.vehicle_no || "Unknown",
+            vehicleType: booking.vehicleType
+          }
+        });
+      }
+
+      if (booking.status === 'Completed' && booking.exit_time) {
+        return res.status(400).json({ error: "❌ Booking Already Used (Exit Complete)." });
+      }
+
+      return res.status(400).json({ error: "❌ Booking Expired or Invalid." });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -76,14 +76,25 @@ export const api = {
     return { data: result };
   },
 
-  async bookParking(parkingId, vehicleType, userId) {
+  async bookParking(parkingId, vehicleType, userId, vehicleNo, price) {
     const res = await fetch(`${API_URL}/book`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parkingId, vehicleType, userId })
+      body: JSON.stringify({ parkingId, vehicleType, userId, vehicleNo, price })
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.error || "Booking failed");
+    return { data: result };
+  },
+
+  async verifyBookingQr(token) {
+    const res = await fetch(`${API_URL}/verify/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || "Verification failed");
     return { data: result };
   },
 

@@ -66,8 +66,11 @@ export default function ParkerDashboard({ currentUser, preFilledSearch, clearPre
     });
   };
 
-  const handleStartBooking = (parking) => {
+  const [preSelectedVehicle, setPreSelectedVehicle] = useState('Car');
+
+  const handleStartBooking = (parking, vehicleType = 'Car') => {
     setSelectedParking(parking);
+    setPreSelectedVehicle(vehicleType);
     setBookingDrawerOpen(true);
   };
 
@@ -408,6 +411,7 @@ export default function ParkerDashboard({ currentUser, preFilledSearch, clearPre
             currentUser={currentUser}
             onClose={() => setBookingDrawerOpen(false)}
             onBookingSuccess={fetchParkings}
+            initialVehicleType={preSelectedVehicle}
           />
         </div>
       )}
