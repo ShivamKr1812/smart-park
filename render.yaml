@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: smartpark-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    rootDir: backend
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smartpark-postgres
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+
+databases:
+  - name: smartpark-postgres
+    plan: free
+    postgresMajorVersion: 15

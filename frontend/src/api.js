@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:5000';
+const API_URL = process.env.REACT_APP_API_URL || process.env.VITE_API_URL || 'http://localhost:5000';
 
 export const api = {
   // Auth
@@ -102,6 +102,17 @@ export const api = {
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.error || "Failed to rate");
+    return { data: result };
+  },
+
+  async updateUser(userId, updates) {
+    const res = await fetch(`${API_URL}/user/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, ...updates })
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || "Profile sync failed");
     return { data: result };
   }
 };

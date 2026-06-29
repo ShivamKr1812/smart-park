@@ -48,3 +48,7 @@ secrets.json
 # Coverage
 /coverage
 **/coverage/
+
+# Uploads and mock DB
+**/uploads/
+**/db.json

@@ -76,9 +76,20 @@ export default function App() {
 
     switch (currentPage) {
       case 'profile':
-        return <ProfilePage currentUser={currentUser} onUserUpdate={(updated) => {
+        return <ProfilePage currentUser={currentUser} onUserUpdate={async (updated) => {
           setCurrentUser(updated);
           localStorage.setItem('smartpark-user', JSON.stringify(updated));
+          try {
+            const { api } = await import('./api');
+            await api.updateUser(updated._id, {
+              name: updated.name,
+              phone: updated.phone,
+              wallet: updated.wallet,
+              vehicles: updated.vehicles
+            });
+          } catch (err) {
+            console.error("Failed to sync profile coordinates to database:", err.message);
+          }
         }} />;
       case 'history':
         return (

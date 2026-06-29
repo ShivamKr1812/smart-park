@@ -94,7 +94,7 @@
       "slots": [
         {
           "type": "Car",
-          "available": 5,
+          "available": 4,
           "total": 10
         },
         {
@@ -226,6 +226,17 @@
       "price": 50,
       "status": "Completed",
       "date": "2026-06-29T05:42:57.111Z"
+    },
+    {
+      "_id": "9d2950dc9d55e3594659bea1",
+      "userId": "a18b0ca6c7f56a94de335226",
+      "parkingId": "60c72b2f9b1d8e001c8e9ac1",
+      "parkingName": "Metro Parking Station",
+      "location": "Downtown Sector 62",
+      "vehicleType": "Car",
+      "price": 50,
+      "status": "Completed",
+      "date": "2026-06-29T05:56:31.052Z"
     }
   ]
 }
