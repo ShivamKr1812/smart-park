@@ -1,134 +1,230 @@
 import React, { useState } from 'react';
+import { MapPin, Phone, Heart, Star, Navigation, ShieldCheck, ShieldAlert, Cpu } from 'lucide-react';
 
-const LocationIcon = () => (
-  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-
-const PhoneIcon = () => (
-  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-  </svg>
-);
-
-const vehicleEmoji = { Car: '🚗', Bike: '🏍️', Truck: '🚛' };
+const vehicleEmoji = { Car: '🚘', Bike: '🏍️', EV: '⚡', Truck: '🚚' };
 
 const StarRating = ({ rating, totalRatings, onRate }) => {
   const [hover, setHover] = useState(0);
   const display = rating || 0;
   return (
-    <div className="star-row">
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
       {[1, 2, 3, 4, 5].map(star => (
         <button
           key={star}
           type="button"
-          className="star-btn"
-          style={{ color: star <= (hover || display) ? '#f59e0b' : 'var(--border)' }}
+          style={{ background: 'transparent', border: 'none', padding: 0, cursor: onRate ? 'pointer' : 'default', outline: 'none' }}
           onMouseEnter={() => onRate && setHover(star)}
           onMouseLeave={() => onRate && setHover(0)}
           onClick={() => onRate && onRate(star)}
         >
-          {star <= (hover || display) ? '★' : '☆'}
+          <Star 
+            size={14} 
+            fill={star <= (hover || display) ? '#fbbf24' : 'none'} 
+            color={star <= (hover || display) ? '#fbbf24' : 'var(--text-light)'} 
+          />
         </button>
       ))}
-      <span className="rating-text">{display.toFixed(1)}</span>
-      {totalRatings > 0 && <span className="rating-count">({totalRatings})</span>}
+      <span style={{ fontSize: '0.8rem', fontWeight: '700', marginLeft: '0.2rem', color: 'var(--text)' }}>
+        {display.toFixed(1)}
+      </span>
+      {totalRatings > 0 && (
+        <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+          ({totalRatings})
+        </span>
+      )}
     </div>
   );
 };
 
-export default function ParkingCard({ parking, isOwner, onEdit, onDelete, onBook, onRate }) {
-  const [selectedVehicle, setSelectedVehicle] = useState(parking.slots[0]?.type || '');
+export default function ParkingCard({ parking, isOwner, onEdit, onDelete, onBook, onRate, isFav, onFavToggle }) {
+  const [selectedVehicle, setSelectedVehicle] = useState(parking.slots && parking.slots[0]?.type || 'Car');
 
-  const handleOpenMap = () =>
+  const handleOpenMap = (e) => {
+    e.stopPropagation();
     window.open(`https://www.google.com/maps?q=${encodeURIComponent(parking.location)}`, '_blank');
+  };
 
-  const handleCall = () => { window.location.href = `tel:${parking.phone}`; };
+  const handleCall = (e) => {
+    e.stopPropagation();
+    window.location.href = `tel:${parking.phone}`;
+  };
+
+  // Extract slots details for calculations
+  const activeSlot = parking.slots?.find(s => s.type === selectedVehicle);
+  const totalSlots = activeSlot ? activeSlot.total : 10;
+  const availableSlots = activeSlot ? activeSlot.available : 0;
+  const occupancyPercentage = ((totalSlots - availableSlots) / totalSlots) * 100;
+
+  // Amenities mock tags
+  const cctvSecured = Number(parking.price) >= 35;
+  const hasEv = parking.title?.toLowerCase().includes('outlet') || parking.title?.toLowerCase().includes('ev');
+  const hasValet = parking.title?.toLowerCase().includes('valet');
 
   return (
-    <div className="parking-card">
-      {/* Compact colorful header */}
-      <div className="card-map-header">
-        <div className="card-map-pin">📍</div>
-        <div className="card-map-label">{parking.location?.split(',')[0]}</div>
+    <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '0', padding: '0', overflow: 'hidden', height: '100%' }}>
+      
+      {/* Visual Image Header */}
+      <div style={{ height: '140px', background: 'var(--surface-2)', position: 'relative', overflow: 'hidden', borderBottom: '1px solid var(--border)' }}>
+        {/* Procedural background geometry */}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, var(--primary-light), var(--secondary-light))', opacity: '0.7' }} />
+        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: '0.1' }}>
+          <pattern id="cardGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="var(--text)" strokeWidth="1" />
+          </pattern>
+          <rect width="100%" height="100%" fill="url(#cardGrid)" />
+        </svg>
+
+        {/* Dynamic Badge overlay */}
+        <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '0.4rem' }}>
+          <span className="badge badge-success">🟢 Open</span>
+          {hasEv && <span className="badge badge-warning" style={{ background: '#eff6ff', color: '#3b82f6', borderColor: '#bfdbfe' }}>⚡ EV Station</span>}
+        </div>
+
+        {/* Favorite heart toggle button */}
+        {!isOwner && onFavToggle && (
+          <button 
+            type="button"
+            onClick={onFavToggle}
+            style={{ position: 'absolute', top: '12px', right: '12px', background: 'var(--surface-solid)', border: 'none', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justify: 'center', cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
+          >
+            <Heart 
+              size={16} 
+              fill={isFav ? 'var(--danger)' : 'none'} 
+              color={isFav ? 'var(--danger)' : 'var(--text-muted)'} 
+            />
+          </button>
+        )}
+
+        {/* Large Parking Indicator Icon overlay */}
+        <div style={{ position: 'absolute', bottom: '12px', left: '12px', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text)', fontWeight: '700', fontSize: '0.9rem' }}>
+          <MapPin size={16} className="text-muted" />
+          <span>{parking.location?.split(',')[0]}</span>
+        </div>
+        
+        <div style={{ position: 'absolute', bottom: '12px', right: '12px', fontSize: '0.75rem', fontWeight: '700', background: 'var(--surface-solid)', padding: '2px 8px', borderRadius: '4px' }}>
+          0.8 km
+        </div>
       </div>
 
-      <div className="card-content">
-        {/* Title + Price row */}
-        <div className="card-header">
-          <div className="card-title-block">
-            <div className="card-title">{parking.title}</div>
-            <StarRating
-              rating={parking.rating}
-              totalRatings={parking.totalRatings}
-              onRate={onRate ? (val) => onRate(parking._id, val) : null}
-            />
-          </div>
-          <div className="card-price">
-            ₹{parking.price}<span className="price-unit">/hr</span>
+      {/* Main card details content */}
+      <div style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '0.8rem', flex: 1 }}>
+        
+        {/* Title + Price */}
+        <div className="flex-between">
+          <h4 style={{ fontSize: '1.05rem', fontWeight: '800', lineHeight: '1.3' }}>{parking.title}</h4>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--primary)' }}>₹{parking.price}</span>
+            <span className="text-muted" style={{ fontSize: '0.7rem' }}>/hr</span>
           </div>
         </div>
 
-        {/* Location + Phone */}
-        <div className="card-details">
-          <button className="card-detail-btn" onClick={handleOpenMap} title="Open in Maps">
-            <span className="detail-icon"><LocationIcon /></span>
-            <span className="detail-text">{parking.location}</span>
-          </button>
+        {/* Star Rating details */}
+        <StarRating
+          rating={parking.rating}
+          totalRatings={parking.totalRatings}
+          onRate={onRate ? (val) => onRate(parking._id, val) : null}
+        />
+
+        {/* Address and details */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem' }}>
+          <div className="flex-between cursor-pointer" onClick={handleOpenMap} style={{ color: 'var(--text-muted)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <MapPin size={13} /> {parking.location}
+            </span>
+          </div>
           {parking.phone && (
-            <button className="card-detail-btn" onClick={handleCall} title="Call Owner">
-              <span className="detail-icon"><PhoneIcon /></span>
-              <span className="detail-text">{parking.phone}</span>
-            </button>
+            <div className="flex-between cursor-pointer" onClick={handleCall} style={{ color: 'var(--text-muted)' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Phone size={13} /> {parking.phone}
+              </span>
+            </div>
           )}
         </div>
 
-        {/* Slot badges */}
-        <div className="slots-container">
-          {parking.slots.map(slot => {
+        {/* Amenities badges */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', margin: '0.2rem 0' }}>
+          {cctvSecured && <span style={{ fontSize: '0.65rem', background: 'var(--surface-2)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>📹 CCTV</span>}
+          {hasValet && <span style={{ fontSize: '0.65rem', background: 'var(--surface-2)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>🤵 Valet</span>}
+          <span style={{ fontSize: '0.65rem', background: 'var(--surface-2)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>♿ Accessible</span>
+        </div>
+
+        {/* Slots selection pill badges */}
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', margin: '0.2rem 0' }}>
+          {parking.slots?.map(slot => {
             const available = slot.available > 0;
             const isSelected = selectedVehicle === slot.type;
             return (
-              <div
+              <button
                 key={slot.type}
-                className={`slot-badge ${available ? 'slot-green' : 'slot-red'} ${isSelected ? 'slot-selected' : ''}`}
-                onClick={() => !isOwner && available && setSelectedVehicle(slot.type)}
-                style={{ cursor: !isOwner && available ? 'pointer' : 'default' }}
+                type="button"
+                disabled={isOwner || !available}
+                onClick={() => setSelectedVehicle(slot.type)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid',
+                  borderColor: isSelected ? 'var(--primary)' : 'var(--border)',
+                  background: isSelected ? 'var(--primary-light)' : 'transparent',
+                  color: available ? 'var(--text)' : 'var(--text-light)',
+                  cursor: isOwner || !available ? 'default' : 'pointer',
+                  fontSize: '0.75rem',
+                  fontWeight: '600'
+                }}
               >
-                <span className="slot-emoji">{vehicleEmoji[slot.type]}</span>
-                <span className="slot-type">{slot.type}</span>
-                <span className="slot-count">{slot.available}/{slot.total}</span>
-              </div>
+                <span>{vehicleEmoji[slot.type] || '🅿️'}</span>
+                <span>{slot.type}</span>
+                <span style={{ color: available ? 'var(--primary)' : 'var(--danger)' }}>
+                  {slot.available}/{slot.total}
+                </span>
+              </button>
             );
           })}
         </div>
 
-        {/* Actions */}
-        {isOwner ? (
-          <div className="card-actions">
-            <button className="btn btn-secondary btn-sm" onClick={() => onEdit(parking)}>✏️ Edit</button>
-            <button className="btn btn-danger btn-sm" onClick={() => onDelete(parking._id)}>🗑️ Delete</button>
+        {/* Live Slot availability progress bar */}
+        <div style={{ marginTop: '0.2rem' }}>
+          <div className="flex-between text-muted" style={{ fontSize: '0.65rem', marginBottom: '0.2rem' }}>
+            <span>Slot Occupancy Ratio</span>
+            <strong>{Math.round(occupancyPercentage)}% Filled</strong>
           </div>
-        ) : (
-          <div className="card-actions-grid">
-            <button className="btn-icon-action" onClick={handleCall} title="Call">
-              <PhoneIcon />
-            </button>
-            <button className="btn-icon-action" onClick={handleOpenMap} title="Map">
-              <LocationIcon />
-            </button>
-            <button
-              className="btn btn-primary btn-book"
-              disabled={!selectedVehicle}
-              style={{ opacity: selectedVehicle ? 1 : 0.55 }}
-              onClick={() => onBook(parking._id, selectedVehicle)}
-            >
-              Park Here
-            </button>
+          <div style={{ height: '5px', background: 'var(--surface-3)', borderRadius: '99px', overflow: 'hidden' }}>
+            <div 
+              style={{ 
+                height: '100%', 
+                width: `${occupancyPercentage}%`, 
+                background: occupancyPercentage > 85 ? 'var(--danger)' : occupancyPercentage > 60 ? 'var(--warning)' : 'var(--success)', 
+                transition: 'width 0.3s ease' 
+              }} 
+            />
           </div>
-        )}
+        </div>
+
+        {/* Actions Button Grid */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.8rem', marginTop: '0.4rem' }}>
+          {isOwner ? (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => onEdit(parking)}>✏️ Edit</button>
+              <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => onDelete(parking._id)}>🗑️ Delete</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-outline" onClick={handleOpenMap} title="Get Directions" style={{ padding: '0.6rem 0.8rem', borderRadius: 'var(--radius-md)' }}>
+                <Navigation size={15} />
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1, padding: '0.6rem' }}
+                onClick={() => onBook(parking)}
+              >
+                Book Space
+              </button>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );

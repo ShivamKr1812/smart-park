@@ -1,0 +1,231 @@
+{
+  "users": [
+    {
+      "_id": "60c72b2f9b1d8e001c8e9ab1",
+      "name": "Shivam Owner",
+      "email": "shivam12182005@gmail.com",
+      "password": "shivam123",
+      "phone": "9876543210",
+      "role": "owner"
+    },
+    {
+      "_id": "60c72b2f9b1d8e001c8e9ab2",
+      "name": "John Doe",
+      "email": "user@example.com",
+      "password": "password",
+      "phone": "9998887776",
+      "role": "parker"
+    },
+    {
+      "_id": "57cb430ea8551e45f64fa5ec",
+      "name": "punit",
+      "email": "punit123@gmail.com",
+      "password": "punit@121178",
+      "phone": "9999999998",
+      "role": "parker"
+    },
+    {
+      "_id": "6dea17194f8db948a648cbe1",
+      "name": "ritesh ",
+      "email": "ritesh123@gmail.com",
+      "password": "123456",
+      "phone": "9651264649",
+      "role": "parker"
+    },
+    {
+      "_id": "a9a4c9dcd6714d2caa4f88e8",
+      "name": "Dual Parker",
+      "email": "test_dual_1782315562294@example.com",
+      "password": "pass",
+      "phone": "123",
+      "role": "parker"
+    },
+    {
+      "_id": "d991e32870d7e034928540bc",
+      "name": "Dual Owner",
+      "email": "test_dual_1782315562294@example.com",
+      "password": "pass",
+      "phone": "456",
+      "role": "owner"
+    },
+    {
+      "_id": "7b4083a34fb112962b4bc394",
+      "name": "Dual Parker",
+      "email": "test_dual_1782315766962@example.com",
+      "password": "pass",
+      "phone": "123",
+      "role": "parker"
+    },
+    {
+      "_id": "f4b2d9828d9bfaf650cd9476",
+      "name": "Dual Owner",
+      "email": "test_dual_1782315766962@example.com",
+      "password": "pass",
+      "phone": "456",
+      "role": "owner"
+    },
+    {
+      "_id": "a0e741f8f2cc0771a94637ce",
+      "name": "ritesh ",
+      "email": "ritesh123@gmail.com",
+      "password": "123456",
+      "phone": "9651264649",
+      "role": "owner"
+    },
+    {
+      "_id": "a18b0ca6c7f56a94de335226",
+      "name": "ritesh ",
+      "email": "ritesh@example.com",
+      "password": "123456",
+      "phone": "9999999998",
+      "role": "parker"
+    }
+  ],
+  "parkings": [
+    {
+      "_id": "60c72b2f9b1d8e001c8e9ac1",
+      "title": "Metro Parking Station",
+      "location": "Downtown Sector 62",
+      "price": 50,
+      "phone": "9112233445",
+      "ownerId": "60c72b2f9b1d8e001c8e9ab1",
+      "rating": 4.5,
+      "totalRatings": 10,
+      "slots": [
+        {
+          "type": "Car",
+          "available": 5,
+          "total": 10
+        },
+        {
+          "type": "Bike",
+          "available": 15,
+          "total": 20
+        }
+      ]
+    },
+    {
+      "_id": "60c72b2f9b1d8e001c8e9ac2",
+      "title": "Mall of India Parking",
+      "location": "Sector 18",
+      "price": 100,
+      "phone": "9223344556",
+      "ownerId": "60c72b2f9b1d8e001c8e9ab1",
+      "rating": 4,
+      "totalRatings": 5,
+      "slots": [
+        {
+          "type": "Car",
+          "available": 0,
+          "total": 50
+        },
+        {
+          "type": "Bike",
+          "available": 44,
+          "total": 50
+        }
+      ]
+    },
+    {
+      "_id": "60c72b2f9b1d8e001c8e9ac3",
+      "title": "Tech Park Ground Parking",
+      "location": "IT Park Main Road",
+      "price": 40,
+      "phone": "9334455667",
+      "ownerId": "60c72b2f9b1d8e001c8e9ab1",
+      "rating": 3.8,
+      "totalRatings": 4,
+      "slots": [
+        {
+          "type": "Car",
+          "available": 0,
+          "total": 30
+        },
+        {
+          "type": "Bike",
+          "available": 12,
+          "total": 30
+        }
+      ]
+    }
+  ],
+  "bookings": [
+    {
+      "_id": "60c72b2f9b1d8e001c8e9ad1",
+      "userId": "60c72b2f9b1d8e001c8e9ab2",
+      "parkingId": "60c72b2f9b1d8e001c8e9ac1",
+      "parkingName": "Metro Parking Station",
+      "location": "Downtown Sector 62",
+      "vehicleType": "Car",
+      "price": 50,
+      "date": "2026-06-13T10:00:00.000Z",
+      "status": "Completed"
+    },
+    {
+      "_id": "7659d0dd9d8741878b529ea1",
+      "userId": "60c72b2f9b1d8e001c8e9ab2",
+      "parkingId": "60c72b2f9b1d8e001c8e9ac1",
+      "parkingName": "Metro Parking Station",
+      "location": "Downtown Sector 62",
+      "vehicleType": "Car",
+      "price": 50,
+      "status": "Completed",
+      "date": "2026-06-13T19:05:16.308Z"
+    },
+    {
+      "_id": "de89ebe2014014fc9721ab2c",
+      "userId": "60c72b2f9b1d8e001c8e9ab2",
+      "parkingId": "60c72b2f9b1d8e001c8e9ac1",
+      "parkingName": "Metro Parking Station",
+      "location": "Downtown Sector 62",
+      "vehicleType": "Car",
+      "price": 50,
+      "status": "Completed",
+      "date": "2026-06-13T19:06:03.227Z"
+    },
+    {
+      "_id": "f87a07ba1d9d49453c1a5399",
+      "userId": "6dea17194f8db948a648cbe1",
+      "parkingId": "60c72b2f9b1d8e001c8e9ac2",
+      "parkingName": "Mall of India Parking",
+      "location": "Sector 18",
+      "vehicleType": "Car",
+      "price": 100,
+      "status": "Completed",
+      "date": "2026-06-24T16:02:18.624Z"
+    },
+    {
+      "_id": "cd49f4871a5a10f58e64f9a4",
+      "userId": "6dea17194f8db948a648cbe1",
+      "parkingId": "60c72b2f9b1d8e001c8e9ac2",
+      "parkingName": "Mall of India Parking",
+      "location": "Sector 18",
+      "vehicleType": "Car",
+      "price": 100,
+      "status": "Completed",
+      "date": "2026-06-24T16:02:25.067Z"
+    },
+    {
+      "_id": "36582767db61c047d2e9553c",
+      "userId": "6dea17194f8db948a648cbe1",
+      "parkingId": "60c72b2f9b1d8e001c8e9ac2",
+      "parkingName": "Mall of India Parking",
+      "location": "Sector 18",
+      "vehicleType": "Bike",
+      "price": 100,
+      "status": "Completed",
+      "date": "2026-06-24T16:02:35.353Z"
+    },
+    {
+      "_id": "8f5be796f76830ea0ab86162",
+      "userId": "a18b0ca6c7f56a94de335226",
+      "parkingId": "60c72b2f9b1d8e001c8e9ac1",
+      "parkingName": "Metro Parking Station",
+      "location": "Downtown Sector 62",
+      "vehicleType": "Car",
+      "price": 50,
+      "status": "Completed",
+      "date": "2026-06-29T05:42:57.111Z"
+    }
+  ]
+}
